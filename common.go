@@ -93,17 +93,11 @@ func NewLiner() *State {
 
 // NewLinerTTY initializes a new *State with connecting to tty.
 // This is useful when prompting regardless of the redirections.
-func NewLinerTTY() *State {
+func NewLinerTTY(tty *tty.TTY) *State {
 	var s State
-	tty, err := tty.Open()
-	if err == nil {
-		s.setWriter(tty.Output())
-		s.setReader(tty.Input())
-		s.tty = tty
-	} else {
-		s.setWriter(os.Stdout)
-		s.setReader(os.Stdin)
-	}
+	s.setWriter(tty.Output())
+	s.setReader(tty.Input())
+	s.tty = tty
 	s.init()
 	return &s
 }
