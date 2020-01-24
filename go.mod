@@ -1,4 +1,4 @@
-module github.com/peterh/liner
+module github.com/itchyny/liner
 
 go 1.13
 
