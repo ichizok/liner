@@ -11,9 +11,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"sync"
 	"unicode/utf8"
+
+	"github.com/mattn/go-tty"
 )
 
 type commonState struct {
@@ -26,7 +29,9 @@ type commonState struct {
 	columns           int
 	killRing          *ring.Ring
 	ctrlCAborts       bool
+	w                 io.Writer
 	r                 *bufio.Reader
+	outfd, infd       uintptr
 	tabStyle          TabStyle
 	multiLineMode     bool
 	cursorRows        int
@@ -75,6 +80,27 @@ const KillRingMax = 60
 
 // HistoryLimit is the maximum number of entries saved in the scrollback history.
 const HistoryLimit = 1000
+
+// NewLiner initializes a new *State, and sets the terminal into raw mode. To
+// restore the terminal to its previous state, call State.Close().
+func NewLiner() *State {
+	var s State
+	s.setWriter(os.Stdout)
+	s.setReader(os.Stdin)
+	s.init()
+	return &s
+}
+
+// NewLinerTTY initializes a new *State with connecting to tty.
+// This is useful when prompting regardless of the redirections.
+func NewLinerTTY(tty *tty.TTY) *State {
+	var s State
+	s.setWriter(tty.Output())
+	s.setReader(tty.Input())
+	s.tty = tty
+	s.init()
+	return &s
+}
 
 // ReadHistory reads scrollback history from r. Returns the number of lines
 // read, and any read error (except io.EOF).
@@ -218,7 +244,7 @@ func (s *State) SetTabCompletionStyle(tabStyle TabStyle) {
 // ModeApplier is the interface that wraps a representation of the terminal
 // mode. ApplyMode sets the terminal to this mode.
 type ModeApplier interface {
-	ApplyMode() error
+	ApplyMode(uintptr) error
 }
 
 // SetCtrlCAborts sets whether Prompt on a supported terminal will return an
@@ -252,11 +278,41 @@ func (s *State) SetBeep(beep bool) {
 
 func (s *State) promptUnsupported(p string) (string, error) {
 	if !s.inputRedirected || !s.terminalSupported {
-		fmt.Print(p)
+		s.print(p)
 	}
 	linebuf, _, err := s.r.ReadLine()
 	if err != nil {
 		return "", err
 	}
 	return string(linebuf), nil
+}
+
+func (s *State) print(str string) (int, error) {
+	return fmt.Fprint(s.w, str)
+}
+
+func (s *State) println(args ...interface{}) (int, error) {
+	return fmt.Fprintln(s.w, args...)
+}
+
+func (s *State) printf(str string, args ...interface{}) (int, error) {
+	return fmt.Fprintf(s.w, str, args...)
+}
+
+func (s *State) setWriter(w io.Writer) {
+	s.w = w
+	if f, ok := w.(interface{ Fd() uintptr }); ok {
+		s.outfd = f.Fd()
+	} else {
+		s.outfd = os.Stdout.Fd()
+	}
+}
+
+func (s *State) setReader(r io.Reader) {
+	s.r = bufio.NewReader(r)
+	if f, ok := r.(interface{ Fd() uintptr }); ok {
+		s.infd = f.Fd()
+	} else {
+		s.infd = os.Stdin.Fd()
+	}
 }

@@ -3,12 +3,10 @@
 package liner
 
 import (
-	"bufio"
 	"container/ring"
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -107,7 +105,7 @@ func (s *State) refresh(prompt []rune, buf []rune, pos int) error {
 
 func (s *State) refreshSingleLine(prompt []rune, buf []rune, pos int) error {
 	s.cursorPos(0)
-	_, err := fmt.Print(string(prompt))
+	_, err := s.print(string(prompt))
 	if err != nil {
 		return err
 	}
@@ -120,7 +118,7 @@ func (s *State) refreshSingleLine(prompt []rune, buf []rune, pos int) error {
 	}
 	pos = countGlyphs(buf[:pos])
 	if pLen+bLen < s.columns {
-		_, err = fmt.Print(string(buf))
+		_, err = s.print(string(buf))
 		s.eraseLine()
 		s.cursorPos(pLen + pos)
 	} else {
@@ -151,11 +149,11 @@ func (s *State) refreshSingleLine(prompt []rune, buf []rune, pos int) error {
 
 		// Output
 		if start > 0 {
-			fmt.Print("{")
+			s.print("{")
 		}
-		fmt.Print(string(line))
+		s.print(string(line))
 		if end < bLen {
-			fmt.Print("}")
+			s.print("}")
 		}
 
 		// Set cursor position
@@ -204,10 +202,10 @@ func (s *State) refreshMultiLine(prompt []rune, buf []rune, pos int) error {
 	s.eraseLine()
 
 	/* Write the prompt and the current buffer content */
-	if _, err := fmt.Print(string(prompt)); err != nil {
+	if _, err := s.print(string(prompt)); err != nil {
 		return err
 	}
-	if _, err := fmt.Print(string(buf)); err != nil {
+	if _, err := s.print(string(buf)); err != nil {
 		return err
 	}
 
@@ -242,7 +240,7 @@ func (s *State) resetMultiLine(prompt []rune, buf []rune, pos int) {
 	cursorRows := (columns + s.columns) / s.columns
 	if s.maxRows-cursorRows > 0 {
 		for i := 0; i < s.maxRows-cursorRows; i++ {
-			fmt.Println() // always moves the cursor down or scrolls the window up as needed
+			s.println() // always moves the cursor down or scrolls the window up as needed
 		}
 	}
 	s.maxRows = 1
@@ -318,7 +316,7 @@ func (s *State) printedTabs(items []string) func(tabDirection) (string, error) {
 
 		if numTabs == 2 {
 			if len(items) > 100 {
-				fmt.Printf("\nDisplay all %d possibilities? (y or n) ", len(items))
+				s.printf("\nDisplay all %d possibilities? (y or n) ", len(items))
 			prompt:
 				for {
 					next, err := s.readNext()
@@ -338,7 +336,7 @@ func (s *State) printedTabs(items []string) func(tabDirection) (string, error) {
 					}
 				}
 			}
-			fmt.Println("")
+			s.println("")
 
 			numColumns, numRows, maxWidth := calculateColumns(s.columns, items)
 
@@ -346,13 +344,13 @@ func (s *State) printedTabs(items []string) func(tabDirection) (string, error) {
 				for j := 0; j < numColumns*numRows; j += numRows {
 					if i+j < len(items) {
 						if maxWidth > 0 {
-							fmt.Printf("%-*.[1]*s", maxWidth, items[i+j])
+							s.printf("%-*.[1]*s", maxWidth, items[i+j])
 						} else {
-							fmt.Printf("%v ", items[i+j])
+							s.printf("%v ", items[i+j])
 						}
 					}
 				}
-				fmt.Println("")
+				s.println("")
 			}
 		} else {
 			numTabs++
@@ -621,7 +619,7 @@ func (s *State) PromptWithSuggestion(prompt string, text string, pos int) (strin
 	s.historyMutex.RLock()
 	defer s.historyMutex.RUnlock()
 
-	fmt.Print(prompt)
+	s.print(prompt)
 	var line = []rune(text)
 	historyEnd := ""
 	var historyPrefix []string
@@ -671,7 +669,7 @@ mainLoop:
 				if s.multiLineMode {
 					s.resetMultiLine(p, line, pos)
 				}
-				fmt.Println()
+				s.println()
 				break mainLoop
 			case ctrlA: // Start of line
 				pos = 0
@@ -781,7 +779,7 @@ mainLoop:
 				s.eraseScreen()
 				s.needRefresh = true
 			case ctrlC: // reset
-				fmt.Println("^C")
+				s.println("^C")
 				if s.multiLineMode {
 					s.resetMultiLine(p, line, pos)
 				}
@@ -790,7 +788,7 @@ mainLoop:
 				}
 				line = line[:0]
 				pos = 0
-				fmt.Print(prompt)
+				s.print(prompt)
 				s.restartPrompt()
 			case ctrlH, bs: // Backspace
 				if pos <= 0 {
@@ -838,7 +836,7 @@ mainLoop:
 					len(p)+len(line) < s.columns*4 && // Avoid countGlyphs on large lines
 					countGlyphs(p)+countGlyphs(line) < s.columns-1 {
 					line = append(line, v)
-					fmt.Printf("%c", v)
+					s.printf("%c", v)
 					pos++
 				} else {
 					line = append(line[:pos], append([]rune{v}, line[pos:]...)...)
@@ -1041,7 +1039,7 @@ restart:
 	s.startPrompt()
 	s.getColumns()
 
-	fmt.Print(prompt)
+	s.print(prompt)
 	var line []rune
 	pos := 0
 
@@ -1068,7 +1066,7 @@ mainLoop:
 				if s.multiLineMode {
 					s.resetMultiLine(p, line, pos)
 				}
-				fmt.Println()
+				s.println()
 				break mainLoop
 			case ctrlD: // del
 				if pos == 0 && len(line) == 0 {
@@ -1094,7 +1092,7 @@ mainLoop:
 					pos -= n
 				}
 			case ctrlC:
-				fmt.Println("^C")
+				s.println("^C")
 				if s.multiLineMode {
 					s.resetMultiLine(p, line, pos)
 				}
@@ -1103,7 +1101,7 @@ mainLoop:
 				}
 				line = line[:0]
 				pos = 0
-				fmt.Print(prompt)
+				s.print(prompt)
 				s.restartPrompt()
 			// Unused keys
 			case esc, tab, ctrlA, ctrlB, ctrlE, ctrlF, ctrlG, ctrlK, ctrlN, ctrlO, ctrlP, ctrlQ, ctrlR, ctrlS,
@@ -1125,15 +1123,10 @@ func (s *State) tooNarrow(prompt string) (string, error) {
 	// Docker and OpenWRT and etc sometimes return 0 column width
 	// Reset mode temporarily. Restore baked mode in case the terminal
 	// is wide enough for the next Prompt attempt.
-	m, merr := TerminalMode()
-	s.origMode.ApplyMode()
+	m, merr := s.TerminalMode()
+	s.origMode.ApplyMode(s.infd)
 	if merr == nil {
-		defer m.ApplyMode()
-	}
-	if s.r == nil {
-		// Windows does not always set s.r
-		s.r = bufio.NewReader(os.Stdin)
-		defer func() { s.r = nil }()
+		defer m.ApplyMode(s.infd)
 	}
 	return s.promptUnsupported(prompt)
 }
@@ -1180,6 +1173,6 @@ func (s *State) eraseWord(pos int, line []rune, killAction int) (int, []rune, in
 
 func (s *State) doBeep() {
 	if !s.noBeep {
-		fmt.Print(beep)
+		s.print(beep)
 	}
 }

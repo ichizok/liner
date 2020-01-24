@@ -3,9 +3,7 @@
 package liner
 
 import (
-	"bufio"
 	"errors"
-	"os"
 )
 
 // State represents an open terminal
@@ -24,14 +22,7 @@ func (s *State) PasswordPrompt(p string) (string, error) {
 	return "", errors.New("liner: function not supported in this terminal")
 }
 
-// NewLiner initializes a new *State
-//
-// Note that this operating system uses a fallback mode without line
-// editing. Patches welcome.
-func NewLiner() *State {
-	var s State
-	s.r = bufio.NewReader(os.Stdin)
-	return &s
+func (s *State) init() {
 }
 
 // Close returns the terminal to its previous mode
@@ -47,12 +38,12 @@ func TerminalSupported() bool {
 
 type noopMode struct{}
 
-func (n noopMode) ApplyMode() error {
+func (n noopMode) ApplyMode(uintptr) error {
 	return nil
 }
 
 // TerminalMode returns a noop InputModeSetter on this platform.
-func TerminalMode() (ModeApplier, error) {
+func (s *State) TerminalMode() (ModeApplier, error) {
 	return noopMode{}, nil
 }
 
