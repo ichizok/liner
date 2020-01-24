@@ -9,6 +9,9 @@ Windows.
 Liner is released under the X11 license (which is similar to the new BSD
 license).
 
+Note: This is a forked version of https://github.com/peterh/liner. This fork
+adds TTY support.
+
 Line Editing
 ------------
 
