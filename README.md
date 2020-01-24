@@ -98,4 +98,19 @@ func main() {
 }
 ```
 
-For documentation, see http://godoc.org/github.com/peterh/liner
+If you want to connect to the tty, use [go-tty](github.com/mattn/go-tty).
+```go
+import "github.com/mattn/go-tty"
+
+func main() {
+	tty, err := tty.Open()
+	if err != nil {
+		log.Fatalln(err)
+	}
+	line := liner.NewLinerTTY(tty)
+	defer line.Close()
+	// ...
+}
+```
+
+For documentation, see https://godoc.org/github.com/itchyny/liner
